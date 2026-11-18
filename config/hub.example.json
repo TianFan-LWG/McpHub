@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "defaults": {
+    "idle_timeout_minutes": 30,
+    "max_instances": 16,
+    "call_timeout_seconds": 60,
+    "start_timeout_seconds": 90,
+    "default_project": null
+  },
+  "mcps": {
+    "filesystem": {
+      "name": "filesystem",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${PROJECT_ROOT}"
+      ],
+      "env": {},
+      "enabled": true,
+      "description": "Filesystem MCP scoped to the current project directory.",
+      "bindings": {
+        "strategy": "per_project",
+        "required": [
+          "PROJECT_ROOT"
+        ]
+      }
+    }
+  }
+}
