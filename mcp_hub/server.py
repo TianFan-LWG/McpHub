@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import asyncio
+import json
+import sys
+import threading
 from typing import Any
-
-from mcp.server.mcpserver import MCPServer
 
 from .errors import HubError
 from .hub import Hub
 
-mcp = MCPServer("mcp-hub")
+SERVER_INFO = {"name": "mcp-hub", "version": "1.0.0"}
+PROTOCOL_VERSION = "2024-11-05"
+
 _hub: Hub | None = None
 
 
@@ -24,7 +28,6 @@ def _fail(exc: Exception) -> dict[str, Any]:
     return {"ok": False, "error": {"code": "INTERNAL", "message": str(exc) or exc.__class__.__name__}}
 
 
-@mcp.tool()
 async def mcp_list() -> dict[str, Any]:
     """列出已安装的子 MCP、绑定策略与当前运行实例。"""
     try:
@@ -33,7 +36,6 @@ async def mcp_list() -> dict[str, Any]:
         return _fail(exc)
 
 
-@mcp.tool()
 async def mcp_get(name: str) -> dict[str, Any]:
     """查看某个子 MCP 的完整配置与实例 Key。"""
     try:
@@ -42,7 +44,6 @@ async def mcp_get(name: str) -> dict[str, Any]:
         return _fail(exc)
 
 
-@mcp.tool()
 async def mcp_install(
     name: str,
     command: str,
@@ -71,7 +72,6 @@ async def mcp_install(
         return _fail(exc)
 
 
-@mcp.tool()
 async def mcp_update(
     name: str,
     command: str | None = None,
@@ -102,7 +102,6 @@ async def mcp_update(
         return _fail(exc)
 
 
-@mcp.tool()
 async def mcp_remove(name: str) -> dict[str, Any]:
     """卸载子 MCP 并关闭它的全部实例。"""
     try:
@@ -111,7 +110,6 @@ async def mcp_remove(name: str) -> dict[str, Any]:
         return _fail(exc)
 
 
-@mcp.tool()
 async def mcp_restart(name: str | None = None) -> dict[str, Any]:
     """重启指定子 MCP（不传 name 则重启全部），下次调用时按最新配置惰性重建。"""
     try:
@@ -120,7 +118,6 @@ async def mcp_restart(name: str | None = None) -> dict[str, Any]:
         return _fail(exc)
 
 
-@mcp.tool()
 async def mcp_set_context(project: str | None = None) -> dict[str, Any]:
     """设置默认项目上下文；后续 mcp_call 未显式传 project 时使用它。传空值则清除。"""
     try:
@@ -129,7 +126,6 @@ async def mcp_set_context(project: str | None = None) -> dict[str, Any]:
         return _fail(exc)
 
 
-@mcp.tool()
 async def mcp_tools(name: str, project: str | None = None) -> dict[str, Any]:
     """发现某个子 MCP 暴露的工具。会按需启动该项目的实例。"""
     try:
@@ -138,7 +134,6 @@ async def mcp_tools(name: str, project: str | None = None) -> dict[str, Any]:
         return _fail(exc)
 
 
-@mcp.tool()
 async def mcp_call(
     mcp: str,
     tool: str,
@@ -152,5 +147,195 @@ async def mcp_call(
         return _fail(exc)
 
 
+def _schema(props: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
+    return {"type": "object", "properties": props, "required": required or [], "additionalProperties": False}
+
+
+TOOLS: list[dict[str, Any]] = [
+    {"name": "mcp_list", "description": mcp_list.__doc__ or "", "inputSchema": _schema({})},
+    {"name": "mcp_get", "description": mcp_get.__doc__ or "", "inputSchema": _schema({"name": {"type": "string"}}, ["name"])},
+    {
+        "name": "mcp_install",
+        "description": mcp_install.__doc__ or "",
+        "inputSchema": _schema(
+            {
+                "name": {"type": "string"},
+                "command": {"type": "string"},
+                "args": {"type": "array", "items": {"type": "string"}},
+                "env": {"type": "object", "additionalProperties": {"type": "string"}},
+                "cwd": {"type": "string"},
+                "strategy": {"type": "string", "enum": ["global", "per_project", "per_file"]},
+                "required": {"type": "array", "items": {"type": "string"}},
+                "db_file": {"type": "string"},
+                "description": {"type": "string"},
+            },
+            ["name", "command"],
+        ),
+    },
+    {
+        "name": "mcp_update",
+        "description": mcp_update.__doc__ or "",
+        "inputSchema": _schema(
+            {
+                "name": {"type": "string"},
+                "command": {"type": "string"},
+                "args": {"type": "array", "items": {"type": "string"}},
+                "env": {"type": "object", "additionalProperties": {"type": "string"}},
+                "cwd": {"type": "string"},
+                "strategy": {"type": "string", "enum": ["global", "per_project", "per_file"]},
+                "required": {"type": "array", "items": {"type": "string"}},
+                "db_file": {"type": "string"},
+                "enabled": {"type": "boolean"},
+                "description": {"type": "string"},
+            },
+            ["name"],
+        ),
+    },
+    {"name": "mcp_remove", "description": mcp_remove.__doc__ or "", "inputSchema": _schema({"name": {"type": "string"}}, ["name"])},
+    {"name": "mcp_restart", "description": mcp_restart.__doc__ or "", "inputSchema": _schema({"name": {"type": "string"}})},
+    {"name": "mcp_set_context", "description": mcp_set_context.__doc__ or "", "inputSchema": _schema({"project": {"type": "string"}})},
+    {
+        "name": "mcp_tools",
+        "description": mcp_tools.__doc__ or "",
+        "inputSchema": _schema({"name": {"type": "string"}, "project": {"type": "string"}}, ["name"]),
+    },
+    {
+        "name": "mcp_call",
+        "description": mcp_call.__doc__ or "",
+        "inputSchema": _schema(
+            {
+                "mcp": {"type": "string"},
+                "tool": {"type": "string"},
+                "args": {"type": "object"},
+                "project": {"type": "string"},
+            },
+            ["mcp", "tool"],
+        ),
+    },
+]
+
+_HANDLERS = {
+    "mcp_list": mcp_list,
+    "mcp_get": mcp_get,
+    "mcp_install": mcp_install,
+    "mcp_update": mcp_update,
+    "mcp_remove": mcp_remove,
+    "mcp_restart": mcp_restart,
+    "mcp_set_context": mcp_set_context,
+    "mcp_tools": mcp_tools,
+    "mcp_call": mcp_call,
+}
+
+
+def _write(payload: dict[str, Any]) -> None:
+    sys.stdout.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
+    sys.stdout.flush()
+
+
+def _result(req_id: Any, result: dict[str, Any]) -> None:
+    _write({"jsonrpc": "2.0", "id": req_id, "result": result})
+
+
+def _error(req_id: Any, code: int, message: str) -> None:
+    _write({"jsonrpc": "2.0", "id": req_id, "error": {"code": code, "message": message}})
+
+
+async def _dispatch_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    handler = _HANDLERS.get(name)
+    if handler is None:
+        raise KeyError(name)
+    return await handler(**arguments)
+
+
+async def _handle_method(method: str, params: dict[str, Any]) -> dict[str, Any]:
+    if method == "tools/list":
+        return {"tools": TOOLS}
+    if method == "tools/call":
+        tool_name = params.get("name", "")
+        arguments = params.get("arguments") or {}
+        if tool_name not in _HANDLERS:
+            raise LookupError(f"unknown tool: {tool_name}")
+        result = await _dispatch_tool(tool_name, arguments)
+        return {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}]}
+    if method == "ping":
+        return {}
+    raise LookupError(method)
+
+
+class _Dispatcher:
+    """单事件循环跑在后台线程，主线程阻塞读 stdin 后投递，保证实例的 loop 一致性。"""
+
+    def __init__(self) -> None:
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    def _run_loop(self) -> None:
+        asyncio.set_event_loop(self._loop)
+        self._loop.run_forever()
+
+    def _shutdown(self) -> None:
+        if self._loop is not None and self._loop.is_running():
+            try:
+                fut = asyncio.run_coroutine_threadsafe(get_hub().close(), self._loop)
+                fut.result(timeout=30)
+            except Exception as exc:  # 关停失败不影响退出
+                print(f"mcp-hub shutdown error: {exc}", file=sys.stderr)
+            finally:
+                self._loop.call_soon_threadsafe(self._loop.stop)
+
+    def serve(self) -> None:
+        try:
+            sys.stdin.reconfigure(encoding="utf-8")
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
+        self._loop = asyncio.new_event_loop()
+        worker = threading.Thread(target=self._run_loop, daemon=True)
+        worker.start()
+
+        try:
+            for line in sys.stdin:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    msg = json.loads(line)
+                except json.JSONDecodeError:
+                    _error(None, -32700, "parse error")
+                    continue
+
+                method = msg.get("method")
+                req_id = msg.get("id")
+                if method is None:
+                    continue  # response/notification 无需处理
+                if method == "initialize":
+                    requested = (msg.get("params") or {}).get("protocolVersion", PROTOCOL_VERSION)
+                    _result(
+                        req_id,
+                        {
+                            "protocolVersion": requested,
+                            "capabilities": {"tools": {}},
+                            "serverInfo": SERVER_INFO,
+                        },
+                    )
+                    continue
+                if method.startswith("notifications/"):
+                    continue
+
+                params = msg.get("params") or {}
+                try:
+                    fut = asyncio.run_coroutine_threadsafe(_handle_method(method, params), self._loop)
+                    result = fut.result(timeout=600)
+                    _result(req_id, result)
+                except LookupError as exc:
+                    _error(req_id, -32601, str(exc))
+                except TimeoutError:
+                    _error(req_id, -32000, "request timeout")
+                except Exception as exc:
+                    _error(req_id, -32603, f"internal error: {exc}")
+        finally:
+            self._shutdown()
+
+
 def main() -> None:
-    mcp.run()
+    _Dispatcher().serve()

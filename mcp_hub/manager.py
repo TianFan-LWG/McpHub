@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import TYPE_CHECKING
 
 from .bindings import ResolvedBinding
-from .client import StdioSubMcp
+
+if TYPE_CHECKING:
+    from .client import StdioSubMcp
 
 
 class InstanceManager:
@@ -34,6 +37,8 @@ class InstanceManager:
                 instance = None
             if instance is None:
                 await self._evict_if_needed()
+                from .client import StdioSubMcp
+
                 instance = StdioSubMcp(
                     name=resolved.name,
                     command=resolved.command,
