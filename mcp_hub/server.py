@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 import threading
+import time
+import traceback
 from typing import Any
 
 from .errors import HubError
@@ -11,6 +14,16 @@ from .hub import Hub
 
 SERVER_INFO = {"name": "mcp-hub", "version": "1.0.0"}
 PROTOCOL_VERSION = "2024-11-05"
+
+DEBUG_LOG = os.path.join(os.path.expanduser("~"), ".mcp-hub", "stdio-debug.log")
+
+
+def _dbg(msg: str) -> None:
+    try:
+        with open(DEBUG_LOG, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%H:%M:%S')}] pid={os.getpid()} {msg}\n")
+    except Exception:
+        pass
 
 _hub: Hub | None = None
 
@@ -228,7 +241,9 @@ _HANDLERS = {
 
 
 def _write(payload: dict[str, Any]) -> None:
-    sys.stdout.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
+    line = json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n"
+    _dbg(f"SEND {line.strip()[:400]}")
+    sys.stdout.write(line)
     sys.stdout.flush()
 
 
@@ -282,57 +297,78 @@ class _Dispatcher:
             finally:
                 self._loop.call_soon_threadsafe(self._loop.stop)
 
+    def _handle_message(self, msg: Any) -> None:
+        if not isinstance(msg, dict):
+            _dbg(f"SKIP non-dict message: {type(msg).__name__}")
+            return
+        method = msg.get("method")
+        req_id = msg.get("id")
+        if method is None:
+            return  # response/notification 无需处理
+        if method == "initialize":
+            requested = (msg.get("params") or {}).get("protocolVersion", PROTOCOL_VERSION)
+            _result(
+                req_id,
+                {
+                    "protocolVersion": requested,
+                    "capabilities": {"tools": {}},
+                    "serverInfo": SERVER_INFO,
+                },
+            )
+            return
+        if method.startswith("notifications/"):
+            _dbg(f"NOTIF {method}")
+            return
+
+        params = msg.get("params") or {}
+        try:
+            fut = asyncio.run_coroutine_threadsafe(_handle_method(method, params), self._loop)
+            result = fut.result(timeout=600)
+            _result(req_id, result)
+        except LookupError as exc:
+            _error(req_id, -32601, str(exc))
+        except TimeoutError:
+            _error(req_id, -32000, "request timeout")
+        except Exception as exc:
+            _error(req_id, -32603, f"internal error: {exc}")
+
     def serve(self) -> None:
         try:
-            sys.stdin.reconfigure(encoding="utf-8")
             sys.stdout.reconfigure(encoding="utf-8")
         except Exception:
             pass
+        _dbg(
+            f"spawn argv={sys.argv} cwd={os.getcwd()} "
+            f"PYTHONHOME={os.environ.get('PYTHONHOME')} PYTHONPATH={os.environ.get('PYTHONPATH')}"
+        )
 
         self._loop = asyncio.new_event_loop()
         worker = threading.Thread(target=self._run_loop, daemon=True)
         worker.start()
 
         try:
-            for line in sys.stdin:
-                line = line.strip()
-                if not line:
+            while True:
+                raw = sys.stdin.buffer.readline()
+                if not raw:
+                    _dbg("EOF stdin closed")
+                    break
+                if raw.strip():
+                    _dbg(f"RECV {raw!r}")
+                text = raw.decode("utf-8", "replace").strip()
+                if not text:
                     continue
                 try:
-                    msg = json.loads(line)
-                except json.JSONDecodeError:
+                    msg = json.loads(text)
+                except json.JSONDecodeError as exc:
+                    _dbg(f"PARSE-ERROR {exc}: {text[:200]}")
                     _error(None, -32700, "parse error")
                     continue
-
-                method = msg.get("method")
-                req_id = msg.get("id")
-                if method is None:
-                    continue  # response/notification 无需处理
-                if method == "initialize":
-                    requested = (msg.get("params") or {}).get("protocolVersion", PROTOCOL_VERSION)
-                    _result(
-                        req_id,
-                        {
-                            "protocolVersion": requested,
-                            "capabilities": {"tools": {}},
-                            "serverInfo": SERVER_INFO,
-                        },
-                    )
-                    continue
-                if method.startswith("notifications/"):
-                    continue
-
-                params = msg.get("params") or {}
-                try:
-                    fut = asyncio.run_coroutine_threadsafe(_handle_method(method, params), self._loop)
-                    result = fut.result(timeout=600)
-                    _result(req_id, result)
-                except LookupError as exc:
-                    _error(req_id, -32601, str(exc))
-                except TimeoutError:
-                    _error(req_id, -32000, "request timeout")
-                except Exception as exc:
-                    _error(req_id, -32603, f"internal error: {exc}")
+                msgs = msg if isinstance(msg, list) else [msg]
+                for m in msgs:
+                    try:
+                        self._handle_message(m)
+                    except Exception:
+                        _dbg("HANDLER-CRASH " + traceback.format_exc())
         finally:
             self._shutdown()
 
