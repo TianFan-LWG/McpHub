@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-11-18T18:59:52Z",
-  "updated_at": "2026-11-19T18:05:39Z",
+  "updated_at": "2026-11-19T20:11:26Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -29,21 +29,21 @@
     },
     "README.en.md": {
       "role": "index",
-      "sha256": "a60bbe3e8cef8d1c09dcd51c2af85a74f559cbeafa303100086c1891c87a5592",
-      "size": 10733,
-      "normalized_sha256": "a60bbe3e8cef8d1c09dcd51c2af85a74f559cbeafa303100086c1891c87a5592"
+      "sha256": "4123f444bc175c65219ff2a01a087c588a63fe4af4f9b1d584d51b46f2b75299",
+      "size": 13810,
+      "normalized_sha256": "4123f444bc175c65219ff2a01a087c588a63fe4af4f9b1d584d51b46f2b75299"
     },
     "README.md": {
       "role": "index",
-      "sha256": "f5b242cd233f7d61505fdc7e49bd56fef6e56438181b8b62546490a241576223",
-      "size": 10099,
-      "normalized_sha256": "f5b242cd233f7d61505fdc7e49bd56fef6e56438181b8b62546490a241576223"
+      "sha256": "b8604a8116ac4bf88728df4e45762a4bd785df53b72f29ba94c54e43fef024a0",
+      "size": 13559,
+      "normalized_sha256": "b8604a8116ac4bf88728df4e45762a4bd785df53b72f29ba94c54e43fef024a0"
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "02f86e6d5a689d0cd913536f6cd00dee368682e5660ce7dd1affd8ed11ba61a3",
-      "size": 6361,
-      "normalized_sha256": "02f86e6d5a689d0cd913536f6cd00dee368682e5660ce7dd1affd8ed11ba61a3"
+      "sha256": "296711277e6cb839a2e1c1e241d5a2b701798619f3e65ff1c12aaa75a865f1dd",
+      "size": 8629,
+      "normalized_sha256": "296711277e6cb839a2e1c1e241d5a2b701798619f3e65ff1c12aaa75a865f1dd"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -59,9 +59,9 @@
     },
     "config/hub.example.json": {
       "role": "index",
-      "sha256": "ce58d25d5c5e32d3cab37cc04c37d3e75d95777f918a1f98aee02808c0dde25a",
-      "size": 664,
-      "normalized_sha256": "ce58d25d5c5e32d3cab37cc04c37d3e75d95777f918a1f98aee02808c0dde25a"
+      "sha256": "e1c3c710f35c2fe991864d2bb02844568e120e259c3c8c45bd83810343cf3650",
+      "size": 777,
+      "normalized_sha256": "e1c3c710f35c2fe991864d2bb02844568e120e259c3c8c45bd83810343cf3650"
     },
     "docs/QuickStart.md": {
       "role": "index",
@@ -95,15 +95,15 @@
     },
     "mcp_hub/client.py": {
       "role": "index",
-      "sha256": "56d757914d4a78317a6bef530e240fa32269971d2e527e31f4ec6154b3764481",
-      "size": 6258,
-      "normalized_sha256": "56d757914d4a78317a6bef530e240fa32269971d2e527e31f4ec6154b3764481"
+      "sha256": "5f791dfa3da2021c334bdb1bed0fa2e8f11b4a31e53494ef2b507612d4fe83e8",
+      "size": 7060,
+      "normalized_sha256": "5f791dfa3da2021c334bdb1bed0fa2e8f11b4a31e53494ef2b507612d4fe83e8"
     },
     "mcp_hub/config.py": {
       "role": "index",
-      "sha256": "f838e929875be3c6ed5c6340f3f5685fc6afd83d298cb4a5038415eab151c928",
-      "size": 3815,
-      "normalized_sha256": "f838e929875be3c6ed5c6340f3f5685fc6afd83d298cb4a5038415eab151c928"
+      "sha256": "310c3b710862b12cf473d1507e76780c584aa52e94eb8a0704c915af3f3f3b89",
+      "size": 4060,
+      "normalized_sha256": "310c3b710862b12cf473d1507e76780c584aa52e94eb8a0704c915af3f3f3b89"
     },
     "mcp_hub/errors.py": {
       "role": "index",
@@ -113,21 +113,27 @@
     },
     "mcp_hub/hub.py": {
       "role": "index",
-      "sha256": "a260816ad44b0920f8bce68ee3c82f4ce599f6fbf225e7dbe9d7d580bf82f88a",
-      "size": 9908,
-      "normalized_sha256": "a260816ad44b0920f8bce68ee3c82f4ce599f6fbf225e7dbe9d7d580bf82f88a"
+      "sha256": "77ff6c99628153d147a6805fd0cec51d1f353ae33df7aa0b3c9fdc315a2ca89e",
+      "size": 11367,
+      "normalized_sha256": "77ff6c99628153d147a6805fd0cec51d1f353ae33df7aa0b3c9fdc315a2ca89e"
+    },
+    "mcp_hub/logger.py": {
+      "role": "index",
+      "sha256": "74d7980d7f028ee3e85dd684abf1c53f0728c69bbbf11119e5fe57ad5685619b",
+      "size": 5949,
+      "normalized_sha256": "74d7980d7f028ee3e85dd684abf1c53f0728c69bbbf11119e5fe57ad5685619b"
     },
     "mcp_hub/manager.py": {
       "role": "index",
-      "sha256": "dde878bea1bdde90524a71b8e93eb2bb59b20033ed0319a3546000456613cd83",
-      "size": 3813,
-      "normalized_sha256": "dde878bea1bdde90524a71b8e93eb2bb59b20033ed0319a3546000456613cd83"
+      "sha256": "fe06372581885f54a95f39b95b1b070651590ad14c1b40750a08ee49a6f0351c",
+      "size": 4805,
+      "normalized_sha256": "fe06372581885f54a95f39b95b1b070651590ad14c1b40750a08ee49a6f0351c"
     },
     "mcp_hub/server.py": {
       "role": "index",
-      "sha256": "c039306a3aa13cb410ac525094cd07d110c768998084b54a483af557eb65f836",
-      "size": 4282,
-      "normalized_sha256": "c039306a3aa13cb410ac525094cd07d110c768998084b54a483af557eb65f836"
+      "sha256": "1fe018f076bfab9b59275095d84eedc916b51f436ffb14fb415d4863ba1127df",
+      "size": 12940,
+      "normalized_sha256": "1fe018f076bfab9b59275095d84eedc916b51f436ffb14fb415d4863ba1127df"
     },
     "pyproject.toml": {
       "role": "index",
@@ -158,6 +164,12 @@
       "sha256": "f7eb75919e44c64bf55db39b772281d07d2074a3464cab628008c8ccb30b5e76",
       "size": 8307,
       "normalized_sha256": "f7eb75919e44c64bf55db39b772281d07d2074a3464cab628008c8ccb30b5e76"
+    },
+    "stdio_launcher.py": {
+      "role": "index",
+      "sha256": "fba7bc6a3589d7288d0a6c358230e7fa069b0c870e8ab6fff77545f9deaa2c41",
+      "size": 232,
+      "normalized_sha256": "fba7bc6a3589d7288d0a6c358230e7fa069b0c870e8ab6fff77545f9deaa2c41"
     },
     "tests/test_bindings.py": {
       "role": "observe",
