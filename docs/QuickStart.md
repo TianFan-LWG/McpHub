@@ -1,5 +1,9 @@
 # Quick Start
 
+**AI Agent 请忽略此文档**  
+
+---
+
 ## CN
 
 ### 安装McpHub和skill
@@ -19,6 +23,8 @@
 帮我将现有的 aoci MCP 移除并转换为Hub子MCP
 
 ```
+
+---
 
 ## EN
 
