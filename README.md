@@ -32,6 +32,8 @@ python -m venv .venv
 
 也可以只装运行依赖后以模块方式启动：`.venv/Scripts/python.exe -m pip install "mcp>=1.0.0"`，再用 `python -m mcp_hub` 启动。
 
+> **关于 `mcp` 依赖**：唯一的运行依赖是官方 mcp SDK，它只用于**对下连接子 MCP**（`client.py` 里的 `ClientSession` / `stdio_client`，调用 aoci、sqlite、filesystem 等子 MCP 时需要）。**对上**接收 Agent 请求的 MCP Server（`server.py`）是手写 JSON-RPC stdio 实现，不依赖 SDK——这样可以避免 SDK 冷启动慢导致的握手超时。所以 `mcp>=1.0.0` 不能省，否则所有子 MCP 都连不上。
+
 ### 2. 写 hub 配置
 
 默认读取 `~/.mcp-hub/hub.json`，可用环境变量 `MCPHUB_CONFIG` 指向别处。最小示例见 [config/hub.example.json](config/hub.example.json)：

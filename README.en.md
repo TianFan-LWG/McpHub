@@ -32,6 +32,8 @@ python -m venv .venv
 
 Alternatively, install only the runtime dependency with `.venv/Scripts/python.exe -m pip install "mcp>=1.0.0"` and start it as a module with `python -m mcp_hub`.
 
+> **About the `mcp` dependency**: the only runtime dependency is the official mcp SDK, and it is used solely for **connecting to child MCPs downstream** (`ClientSession` / `stdio_client` in `client.py`, needed to call child MCPs such as aoci, sqlite, filesystem). The **upstream** MCP Server that receives Agent requests (`server.py`) is a hand-written JSON-RPC stdio implementation with no SDK dependency — this avoids handshake timeouts caused by the SDK's slow cold start. So `mcp>=1.0.0` cannot be omitted, otherwise no child MCP can be reached.
+
 ### 2. Write the hub config
 
 By default it reads `~/.mcp-hub/hub.json`; set `MCPHUB_CONFIG` to point elsewhere. See [config/hub.example.json](config/hub.example.json) for a minimal example:
