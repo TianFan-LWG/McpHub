@@ -72,6 +72,7 @@ class Hub:
                     "strategy": definition.bindings.strategy,
                     "command": definition.command,
                     "args": definition.args,
+                    "description": definition.description,
                     "instances": counts.get(name, 0),
                     "instance_keys": [key for key in keys if key.split(":", 1)[0] == name],
                 }

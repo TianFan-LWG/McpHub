@@ -29,6 +29,7 @@ HUB_CONFIG = {
             "command": "uvx",
             "args": ["--with", "mcp<2", "mcp-server-sqlite", "--db-path", "${DB_PATH}"],
             "enabled": True,
+            "description": "Query project-local SQLite databases.",
             "bindings": {
                 "strategy": "per_project",
                 "required": ["PROJECT_ROOT", "DB_PATH"],
@@ -103,6 +104,7 @@ class ProtocolTest(unittest.IsolatedAsyncioTestCase):
                     payload = json.loads(text)
                     self.assertTrue(payload["ok"])
                     self.assertEqual(payload["mcps"][0]["name"], "sqlite")
+                    self.assertEqual(payload["mcps"][0]["description"], "Query project-local SQLite databases.")
 
 
 if __name__ == "__main__":

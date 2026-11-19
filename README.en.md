@@ -190,7 +190,7 @@ The repo ships an [mcp-to-hub](skills/mcp-to-hub/SKILL.md) skill that detects ha
 
 | Tool | Description | Main parameters |
 |---|---|---|
-| `mcp_list` | List child MCPs, strategies, running instances | — |
+| `mcp_list` | List child MCPs, strategies, running instances (includes `description` for capability discovery) | — |
 | `mcp_get` | Show one child MCP's config | `name` |
 | `mcp_install` | Register a child MCP | `name`, `command`, `args?`, `env?`, `cwd?`, `strategy?`, `required?`, `db_file?`, `description?` |
 | `mcp_update` | Modify config (restarts existing instances) | `name` + fields to change |
@@ -199,6 +199,10 @@ The repo ships an [mcp-to-hub](skills/mcp-to-hub/SKILL.md) skill that detects ha
 | `mcp_set_context` | Set the default project | `project?` |
 | `mcp_tools` | Discover a child MCP's tools | `name`, `project?` |
 | `mcp_call` | Proxy a call | `mcp`, `tool`, `args?`, `project?` |
+
+### Helping Agents discover child MCPs
+
+The Agent registers only McpHub as an entry; the real capabilities live in child MCPs. The repo ships an [mcp-hub-discover](skills/mcp-hub-discover/SKILL.md) skill: when the Agent cannot find a tool for the task, it calls `mcp_list()`, reads each child MCP's `description` to judge capabilities, then uses `mcp_tools` to discover concrete tools and `mcp_call` to run them — instead of replying "I can't". So **give every child MCP a `description`**: it directly determines whether the Agent can find that tool.
 
 Typical call:
 
@@ -268,10 +272,13 @@ config/hub.example.json   # full config example
 docs/
   方案设计.md             # design details
   QuickStart.md           # quick install guide
-skills/mcp-to-hub/        # skill: plain MCP config -> Hub child MCP
-  SKILL.md
-  scripts/convert.py
-  references/conversion-rules.md
+skills/
+  mcp-to-hub/              # skill: plain MCP config -> Hub child MCP
+    SKILL.md
+    scripts/convert.py
+    references/conversion-rules.md
+  mcp-hub-discover/        # skill: check Hub child MCPs when a tool is missing
+    SKILL.md
 tests/
   test_bindings.py
   test_e2e_sqlite.py

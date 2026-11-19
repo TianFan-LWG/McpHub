@@ -190,7 +190,7 @@ mcp_install(
 
 | 工具 | 说明 | 主要参数 |
 |---|---|---|
-| `mcp_list` | 列出子 MCP、策略、运行实例 | — |
+| `mcp_list` | 列出子 MCP、策略、运行实例（含 `description`，用于判断子 MCP 能力） | — |
 | `mcp_get` | 查看单个子 MCP 配置 | `name` |
 | `mcp_install` | 注册子 MCP | `name`, `command`, `args?`, `env?`, `cwd?`, `strategy?`, `required?`, `db_file?`, `description?` |
 | `mcp_update` | 修改配置（自动重启现有实例） | `name` + 待改字段 |
@@ -199,6 +199,10 @@ mcp_install(
 | `mcp_set_context` | 设置默认项目 | `project?` |
 | `mcp_tools` | 发现子 MCP 的工具 | `name`, `project?` |
 | `mcp_call` | 代理执行 | `mcp`, `tool`, `args?`, `project?` |
+
+### 让 Agent 主动发现子 MCP
+
+Agent 侧只注册了 McpHub 一个入口，真实能力藏在子 MCP 里。仓库自带 [mcp-hub-discover](skills/mcp-hub-discover/SKILL.md) skill：当 Agent 在现有工具里找不到能完成任务的工具时，它先调 `mcp_list()`，读每个子 MCP 的 `description` 判断能力，再用 `mcp_tools` 发现具体工具、用 `mcp_call` 执行，而不是直接回复"做不到"。因此**建议给子 MCP 都填上 `description`**——它直接决定 Agent 能否找到这个工具。
 
 典型调用：
 
@@ -268,10 +272,13 @@ config/hub.example.json   # 完整配置示例
 docs/
   方案设计.md             # 设计细节
   QuickStart.md           # 快速安装指引
-skills/mcp-to-hub/        # 普通 MCP 配置 -> Hub 子 MCP 的转换 skill
-  SKILL.md
-  scripts/convert.py
-  references/conversion-rules.md
+skills/
+  mcp-to-hub/              # 普通 MCP 配置 -> Hub 子 MCP 的转换 skill
+    SKILL.md
+    scripts/convert.py
+    references/conversion-rules.md
+  mcp-hub-discover/        # 引导 Agent 工具找不到时先查 Hub 子 MCP
+    SKILL.md
 tests/
   test_bindings.py
   test_e2e_sqlite.py
