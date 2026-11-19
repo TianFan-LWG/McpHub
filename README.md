@@ -4,7 +4,7 @@
 
 解决的核心问题：Agent 只有一份全局 MCP 配置、不支持项目级 MCP，导致 sqlite、aoci 这类需要绑定项目/文件的 MCP 一切换项目就指向旧路径或直接失效。McpHub 把项目差异从"配置文件里的固定值"变成"调用时的动态参数"，切项目不需要改全局配置，也不需要重启 Agent。
 
-设计细节见 [docs/方案设计.md](docs/方案设计.md)。
+设计细节见 [docs/方案设计.md](docs/方案设计.md)，快速安装见 [docs/QuickStart.md](docs/QuickStart.md)。English: [README.en.md](README.en.md)。
 
 ## 工作原理
 
@@ -14,17 +14,21 @@ Agent ──一份配置──> McpHub ──按 project 渲染参数──> 子
 ```
 
 - 每个子 MCP 声明 `bindings.strategy`：`global`（全项目共享一个实例）、`per_project`（每项目独立进程）、`per_file`（按文件隔离）。
-- `args/env/cwd` 支持 `${PROJECT_ROOT}` `${CWD}` 等模板，调用时用 `project` 渲染。
+- `args/env/cwd` 支持 `${PROJECT_ROOT}` `${DB_PATH}` 等模板，调用时用 `project` 渲染。
 - 实例 Key 为 `mcp:project_root`，命中复用、未命中惰性启动，空闲回收、LRU 淘汰、崩溃后重建。
 
 ## 快速开始
 
-### 1. 安装依赖
+### 1. 安装
+
+需要 Python 3.10+。在项目根目录从源码安装（会读取 `pyproject.toml` 并注册 `mcp-hub` 命令）：
 
 ```bash
 python -m venv .venv
-.venv/Scripts/python.exe -m pip install mcp
+.venv/Scripts/python.exe -m pip install -e .
 ```
+
+也可以只装运行依赖后以模块方式启动：`.venv/Scripts/python.exe -m pip install "mcp>=1.0.0"`，再用 `python -m mcp_hub` 启动。
 
 ### 2. 写 hub 配置
 
@@ -48,24 +52,40 @@ python -m venv .venv
 }
 ```
 
-`${PROJECT_ROOT}` 会渲染成调用时传入的项目目录，因此同一个 filesystem MCP 在不同项目下是独立实例，各自只能访问自己的目录。
+`${PROJECT_ROOT}` 会渲染成调用时传入的项目目录，因此同一个 filesystem MCP 在不同项目下是独立实例，各自只能访问自己的目录。`defaults` 还可配置 `idle_timeout_minutes`、`max_instances`、`call_timeout_seconds`、`start_timeout_seconds`，完整示例见 `config/hub.example.json`。
 
 ### 3. Agent 侧只加一条
+
+`command` 用安装好的 `mcp-hub` 脚本入口：
 
 ```json
 {
   "mcpServers": {
     "mcp-hub": {
-      "command": "D:/Projects/Python/McpHub/.venv/Scripts/python.exe",
-      "args": ["-m", "mcp_hub"],
-      "cwd": "D:/Projects/Python/McpHub",
-      "env": { "MCPHUB_CONFIG": "C:/Users/Admin/.mcp-hub/hub.json" }
+      "command": "D:/dev/mcp-hub/.venv/Scripts/mcp-hub.exe",
+      "args": [],
+      "env": { "MCPHUB_CONFIG": "C:/Users/example/.mcp-hub/hub.json" }
     }
   }
 }
 ```
 
-`cwd` 指向本项目根，保证 `-m mcp_hub` 能找到包。
+或用虚拟环境里的 Python 以模块方式启动：
+
+```json
+{
+  "mcpServers": {
+    "mcp-hub": {
+      "command": "D:/dev/mcp-hub/.venv/Scripts/python.exe",
+      "args": ["-m", "mcp_hub"],
+      "cwd": "D:/dev/mcp-hub",
+      "env": { "MCPHUB_CONFIG": "C:/Users/example/.mcp-hub/hub.json" }
+    }
+  }
+}
+```
+
+以上路径均为示例，按你的实际安装位置替换。模块方式下 `cwd` 指向项目根，保证 `-m mcp_hub` 能找到包。
 
 ## 从普通 MCP 配置迁移
 
@@ -81,7 +101,7 @@ python -m venv .venv
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/Users/me/projects/myapp"
+        "D:/work/myapp"
       ]
     }
   }
@@ -162,19 +182,21 @@ mcp_install(
 1. 绝对路径要全部换成模板。只要留一处硬编码，切项目后就会指向旧目录 —— 这正是 Hub 要解决的问题。
 2. `env` 里的路径同样要换，例如 aoci 的 `{"AOCI_PROJECT": "${PROJECT_ROOT}"}`。
 
+仓库自带 [mcp-to-hub](skills/mcp-to-hub/SKILL.md) skill，能自动识别写死的路径、替换为模板变量并推断绑定策略；批量迁移时优先用它，再人工核对 `detected` 结果。
+
 ## 元工具
 
-| 工具 | 说明 |
-|---|---|
-| `mcp_list` | 列出子 MCP、策略、运行实例 |
-| `mcp_get` | 查看单个子 MCP 配置 |
-| `mcp_install` | 注册子 MCP |
-| `mcp_update` | 修改配置（自动重启现有实例） |
-| `mcp_remove` | 卸载并关闭实例 |
-| `mcp_restart` | 重启指定/全部子 MCP |
-| `mcp_set_context` | 设置默认项目 |
-| `mcp_tools` | 发现子 MCP 的工具 |
-| `mcp_call` | 代理执行：`mcp` + `tool` + `args` + `project` |
+| 工具 | 说明 | 主要参数 |
+|---|---|---|
+| `mcp_list` | 列出子 MCP、策略、运行实例 | — |
+| `mcp_get` | 查看单个子 MCP 配置 | `name` |
+| `mcp_install` | 注册子 MCP | `name`, `command`, `args?`, `env?`, `cwd?`, `strategy?`, `required?`, `db_file?`, `description?` |
+| `mcp_update` | 修改配置（自动重启现有实例） | `name` + 待改字段 |
+| `mcp_remove` | 卸载并关闭实例 | `name` |
+| `mcp_restart` | 重启指定/全部子 MCP | `name?` |
+| `mcp_set_context` | 设置默认项目 | `project?` |
+| `mcp_tools` | 发现子 MCP 的工具 | `name`, `project?` |
+| `mcp_call` | 代理执行 | `mcp`, `tool`, `args?`, `project?` |
 
 典型调用：
 
@@ -231,6 +253,8 @@ mcp_install(
 
 ```
 mcp_hub/
+  __init__.py   # 包导出
+  __main__.py   # python -m mcp_hub 入口
   server.py     # 对上 MCP Server（MCPServer + 9 个元工具）
   hub.py        # 配置/绑定/代理编排
   manager.py    # 实例池：惰性创建、复用、重启、LRU、空闲回收
@@ -238,7 +262,20 @@ mcp_hub/
   bindings.py   # 模板渲染与实例 Key
   config.py     # pydantic 配置模型与项目级合并
   errors.py     # 结构化错误
-config/hub.example.json
-docs/方案设计.md
+config/hub.example.json   # 完整配置示例
+docs/
+  方案设计.md             # 设计细节
+  QuickStart.md           # 快速安装指引
+skills/mcp-to-hub/        # 普通 MCP 配置 -> Hub 子 MCP 的转换 skill
+  SKILL.md
+  scripts/convert.py
+  references/conversion-rules.md
 tests/
+  test_bindings.py
+  test_e2e_sqlite.py
+pyproject.toml            # 包元数据与 mcp-hub 命令入口
 ```
+
+## 附注
+
+`${DB_PATH}` 由 `bindings.db_file` 解析：相对路径基于当前 `project` 目录，绝对路径原样使用；`db_file` 属于绑定配置，可在项目级 `.mcp-hub.json` 里针对不同项目指定各自的库文件。
