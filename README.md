@@ -58,36 +58,37 @@ python -m venv .venv
 
 ### 3. Agent 侧只加一条
 
-`command` 用安装好的 `mcp-hub` 脚本入口：
+推荐用仓库自带的 `stdio_launcher.py` 以**绝对路径**启动（无需 `cwd`、`env`，兼容性最好）：
 
 ```json
 {
   "mcpServers": {
     "mcp-hub": {
-      "command": "D:/dev/mcp-hub/.venv/Scripts/mcp-hub.exe",
-      "args": [],
-      "env": { "MCPHUB_CONFIG": "C:/Users/example/.mcp-hub/hub.json" }
-    }
-  }
-}
-```
-
-或用虚拟环境里的 Python 以模块方式启动：
-
-```json
-{
-  "mcpServers": {
-    "mcp-hub": {
+      "type": "stdio",
       "command": "D:/dev/mcp-hub/.venv/Scripts/python.exe",
-      "args": ["-m", "mcp_hub"],
-      "cwd": "D:/dev/mcp-hub",
-      "env": { "MCPHUB_CONFIG": "C:/Users/example/.mcp-hub/hub.json" }
+      "args": ["D:/dev/mcp-hub/stdio_launcher.py"]
     }
   }
 }
 ```
 
-以上路径均为示例，按你的实际安装位置替换。模块方式下 `cwd` 指向项目根，保证 `-m mcp_hub` 能找到包。
+也可以用安装好的 `mcp-hub` 脚本入口（`-m mcp_hub` 等价）：
+
+```json
+{
+  "mcpServers": {
+    "mcp-hub": {
+      "type": "stdio",
+      "command": "D:/dev/mcp-hub/.venv/Scripts/mcp-hub.exe",
+      "args": []
+    }
+  }
+}
+```
+
+以上路径均为示例，按你的实际安装位置替换。配置默认读 `~/.mcp-hub/hub.json`，如需指定其他位置再在 `env` 里加 `MCPHUB_CONFIG`（`stdio_launcher.py` 方式无需配置 `cwd`）。
+
+> **为什么推荐绝对路径启动**：部分 Agent（如 WorkBuddy）在会话切换时会重连 MCP，并对配置里的 `cwd` 字段做规范化比对；写死 `cwd` 可能被判定为「配置变更」而触发连接重建、导致工具短暂掉线。`stdio_launcher.py` 自身会把项目根加入 `sys.path`，因此不需要 `cwd`。
 
 ## 从普通 MCP 配置迁移
 
@@ -232,6 +233,48 @@ Agent 侧只注册了 McpHub 一个入口，真实能力藏在子 MCP 里。仓�
 
 这个项目额外允许访问同级的 `shared` 目录。切换项目时 McpHub 自动加载并深度合并到全局配置之上，全局配置不用动。
 
+## 日志
+
+McpHub 会记录子 MCP 的完整生命周期（实例启动/就绪/崩溃/回收/淘汰）、工具调用与报错，便于排查"子 MCP 没起来""工具调用失败"等问题。
+
+- **默认路径**：`~/.mcp-hub/logs/mcp-hub.log`，每天午夜轮转，保留 14 天（如 `mcp-hub.log.2026-11-20`）。
+- **绝不写 stdout**：日志只写文件或可选地回显 stderr，不会污染 stdio MCP 协议。默认不回显 stderr。
+
+日志配置写在 `hub.json` 的 `defaults.logging`：
+
+```json
+{
+  "defaults": {
+    "logging": {
+      "level": "INFO",
+      "dir": null,
+      "stderr": false,
+      "backup_days": 14
+    }
+  }
+}
+```
+
+| 字段 | 说明 | 默认 |
+|---|---|---|
+| `level` | `DEBUG` / `INFO` / `WARNING` / `ERROR`；`DEBUG` 会额外记录每一条收发的协议帧 | `INFO` |
+| `dir` | 日志目录；`null` 表示 `~/.mcp-hub/logs` | `null` |
+| `stderr` | 是否同时把日志写到 stderr | `false` |
+| `backup_days` | 按天轮转保留天数 | `14` |
+
+也可用环境变量覆盖（优先级高于配置文件）：`MCPHUB_LOG_DIR`、`MCPHUB_LOG_LEVEL`、`MCPHUB_LOG_STDERR=1`。
+
+典型日志片段：
+
+```
+2026-11-20 03:53:52.660 INFO    [25896] 客户端握手：协议版本=2025-11-25
+2026-11-20 03:53:52.670 INFO    [25896] Hub 初始化：配置=...\hub.json 子MCP数=1 日志目录=...
+2026-11-20 03:53:52.671 INFO    [25896] stdin 关闭，开始关停
+2026-11-20 03:53:52.671 INFO    [25896] McpHub 优雅关停完成
+```
+
+排查子 MCP 问题时，把 `level` 调到 `DEBUG` 重启即可看到完整的协议交互与实例状态变化。注：早期版本的 `~/.mcp-hub/stdio-debug.log` 已被本日志系统取代，不再生成。
+
 ## 模板变量
 
 | 变量 | 含义 |
@@ -261,13 +304,15 @@ Agent 侧只注册了 McpHub 一个入口，真实能力藏在子 MCP 里。仓�
 mcp_hub/
   __init__.py   # 包导出
   __main__.py   # python -m mcp_hub 入口
-  server.py     # 对上 MCP Server（MCPServer + 9 个元工具）
+  server.py     # 对上 MCP Server（手写 JSON-RPC stdio + 9 个元工具）
   hub.py        # 配置/绑定/代理编排
   manager.py    # 实例池：惰性创建、复用、重启、LRU、空闲回收
   client.py     # stdio 子 MCP 客户端（专用 worker task 持有 session）
+  logger.py     # 日志系统：按天轮转、stdout 零污染、可配置级别/路径
   bindings.py   # 模板渲染与实例 Key
-  config.py     # pydantic 配置模型与项目级合并
+  config.py     # pydantic 配置模型与项目级合并（含 defaults.logging）
   errors.py     # 结构化错误
+stdio_launcher.py         # 绝对路径 stdio 启动入口（推荐给 Agent 使用）
 config/hub.example.json   # 完整配置示例
 docs/
   方案设计.md             # 设计细节
@@ -284,6 +329,8 @@ tests/
   test_e2e_sqlite.py
 pyproject.toml            # 包元数据与 mcp-hub 命令入口
 ```
+
+运行时生成（不入库）：日志默认在 `~/.mcp-hub/logs/`，配置在 `~/.mcp-hub/hub.json`。
 
 ## 附注
 

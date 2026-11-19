@@ -58,36 +58,37 @@ By default it reads `~/.mcp-hub/hub.json`; set `MCPHUB_CONFIG` to point elsewher
 
 ### 3. Add a single entry on the Agent side
 
-Using the installed `mcp-hub` script entry point:
+Recommended: use the bundled `stdio_launcher.py` with an **absolute path** (no `cwd` or `env` needed, best compatibility):
 
 ```json
 {
   "mcpServers": {
     "mcp-hub": {
-      "command": "D:/dev/mcp-hub/.venv/Scripts/mcp-hub.exe",
-      "args": [],
-      "env": { "MCPHUB_CONFIG": "C:/Users/example/.mcp-hub/hub.json" }
-    }
-  }
-}
-```
-
-Or start it as a module using the virtual environment's Python:
-
-```json
-{
-  "mcpServers": {
-    "mcp-hub": {
+      "type": "stdio",
       "command": "D:/dev/mcp-hub/.venv/Scripts/python.exe",
-      "args": ["-m", "mcp_hub"],
-      "cwd": "D:/dev/mcp-hub",
-      "env": { "MCPHUB_CONFIG": "C:/Users/example/.mcp-hub/hub.json" }
+      "args": ["D:/dev/mcp-hub/stdio_launcher.py"]
     }
   }
 }
 ```
 
-All paths above are illustrative — replace them with your actual install locations. In module mode, `cwd` points to the project root so that `-m mcp_hub` can find the package.
+Alternatively, use the installed `mcp-hub` script entry point (equivalent to `-m mcp_hub`):
+
+```json
+{
+  "mcpServers": {
+    "mcp-hub": {
+      "type": "stdio",
+      "command": "D:/dev/mcp-hub/.venv/Scripts/mcp-hub.exe",
+      "args": []
+    }
+  }
+}
+```
+
+All paths above are illustrative — replace them with your actual install locations. The config is read from `~/.mcp-hub/hub.json` by default; only add `MCPHUB_CONFIG` to `env` if you need a different location.
+
+> **Why absolute-path launch**: some Agents (e.g. WorkBuddy) reconnect MCPs when switching sessions and normalize-compare the `cwd` field. A hardcoded `cwd` can be flagged as "config changed" and trigger a reconnect that briefly drops tools. `stdio_launcher.py` adds the project root to `sys.path` itself, so no `cwd` is needed.
 
 ## Migrating from a plain MCP config
 
@@ -232,6 +233,39 @@ Place a `.mcp-hub.json` in the project root with only the differences:
 
 This project additionally allows access to the sibling `shared` directory. When switching projects, McpHub automatically loads and deep-merges it over the global config, leaving the global config untouched.
 
+## Logging
+
+McpHub records the full lifecycle of child MCPs (instance start/ready/crash/reap/eviction), tool calls, and errors — useful for diagnosing "child MCP won't start" or "tool call failed".
+
+- **Default path**: `~/.mcp-hub/logs/mcp-hub.log`, rotated daily, kept for 14 days (e.g. `mcp-hub.log.2026-11-20`).
+- **Never writes stdout**: logs go only to a file, with optional stderr echo; stderr echo is off by default so the stdio MCP protocol stays clean.
+
+Configure under `defaults.logging` in `hub.json`:
+
+```json
+{
+  "defaults": {
+    "logging": {
+      "level": "INFO",
+      "dir": null,
+      "stderr": false,
+      "backup_days": 14
+    }
+  }
+}
+```
+
+| Field | Meaning | Default |
+|---|---|---|
+| `level` | `DEBUG` / `INFO` / `WARNING` / `ERROR`; `DEBUG` also logs every protocol frame sent/received | `INFO` |
+| `dir` | Log directory; `null` means `~/.mcp-hub/logs` | `null` |
+| `stderr` | Also echo logs to stderr | `false` |
+| `backup_days` | Days of rotated logs to keep | `14` |
+
+Environment variables override the config file (higher priority): `MCPHUB_LOG_DIR`, `MCPHUB_LOG_LEVEL`, `MCPHUB_LOG_STDERR=1`.
+
+The old `~/.mcp-hub/stdio-debug.log` from early versions has been replaced by this logging system and is no longer produced.
+
 ## Template variables
 
 | Variable | Meaning |
@@ -261,13 +295,15 @@ When a template needs a project but no `project` was passed and no default is se
 mcp_hub/
   __init__.py   # package exports
   __main__.py   # python -m mcp_hub entry point
-  server.py     # upstream MCP Server (MCPServer + 9 meta tools)
+  server.py     # upstream MCP Server (hand-written JSON-RPC stdio + 9 meta tools)
   hub.py        # config / binding / proxy orchestration
   manager.py    # instance pool: lazy create, reuse, restart, LRU, idle reaping
   client.py     # stdio child MCP client (dedicated worker task holds the session)
+  logger.py     # logging: daily rotation, zero stdout pollution, configurable level/path
   bindings.py   # template rendering and instance keys
-  config.py     # pydantic config models and project-level merging
+  config.py     # pydantic config models and project-level merging (incl. defaults.logging)
   errors.py     # structured errors
+stdio_launcher.py         # absolute-path stdio launcher (recommended for Agents)
 config/hub.example.json   # full config example
 docs/
   方案设计.md             # design details
@@ -284,6 +320,8 @@ tests/
   test_e2e_sqlite.py
 pyproject.toml            # package metadata and the mcp-hub command entry point
 ```
+
+Generated at runtime (not committed): logs default to `~/.mcp-hub/logs/`, config at `~/.mcp-hub/hub.json`.
 
 ## Notes
 

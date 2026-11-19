@@ -15,6 +15,7 @@ from .config import (
     merge_overlay,
     save_config,
 )
+from . import logger
 from .errors import HubError
 from .manager import InstanceManager
 
@@ -23,6 +24,15 @@ class Hub:
     def __init__(self, config_path: str | Path | None = None) -> None:
         self.config_path = Path(config_path).expanduser() if config_path else default_config_path()
         self.config = load_config(self.config_path)
+        log_cfg = self.config.defaults.logging
+        logger.configure(
+            log_dir=log_cfg.dir,
+            level=log_cfg.level,
+            stderr=log_cfg.stderr,
+            backup_days=log_cfg.backup_days,
+        )
+        self.log = logger.get_logger()
+        self.log.info("Hub 初始化：配置=%s 子MCP数=%d 日志目录=%s", self.config_path, len(self.config.mcps), logger.log_dir())
         self.active_project: str | None = self.config.defaults.default_project
         self.manager = InstanceManager(
             call_timeout=float(self.config.defaults.call_timeout_seconds),
@@ -40,9 +50,13 @@ class Hub:
         while True:
             await asyncio.sleep(60)
             try:
-                await self.manager.reap_idle()
+                reaped = await self.manager.reap_idle()
+                if reaped:
+                    self.log.info("空闲回收：关闭 %d 个实例", reaped)
+            except asyncio.CancelledError:
+                raise
             except Exception:
-                pass
+                self.log.exception("空闲回收任务异常")
 
     def _project(self, project: str | None) -> str | None:
         return project or self.active_project
@@ -125,6 +139,7 @@ class Hub:
         )
         self.config.mcps[name] = definition
         save_config(self.config, self.config_path)
+        self.log.info("安装子 MCP：%s command=%s strategy=%s", name, command, strategy)
         return {
             "ok": True,
             "mcp": definition.model_dump(mode="json"),
@@ -151,6 +166,7 @@ class Hub:
         self.config.mcps[name] = McpDefinition.model_validate(payload)
         save_config(self.config, self.config_path)
         stopped = await self.manager.restart(name)
+        self.log.info("更新子 MCP：%s 变更字段=%s 关闭实例=%d", name, list(changes.keys()), stopped)
         return {
             "ok": True,
             "mcp": self.config.mcps[name].model_dump(mode="json"),
@@ -163,6 +179,7 @@ class Hub:
         del self.config.mcps[name]
         save_config(self.config, self.config_path)
         stopped = await self.manager.restart(name)
+        self.log.info("卸载子 MCP：%s 关闭实例=%d", name, stopped)
         return {"ok": True, "removed": name, "stopped_instances": stopped}
 
     async def restart(self, name: str | None = None) -> dict[str, Any]:
@@ -170,8 +187,10 @@ class Hub:
             if name not in self.config.mcps:
                 raise HubError("NOT_FOUND", f"mcp '{name}' is not installed", mcp=name)
             stopped = await self.manager.restart(name)
+            self.log.info("重启子 MCP：%s 关闭实例=%d", name, stopped)
             return {"ok": True, "restarted": name, "stopped_instances": stopped}
         await self.manager.close_all()
+        self.log.info("重启全部子 MCP：已关闭所有实例")
         return {"ok": True, "restarted": "all"}
 
     def set_context(self, project: str | None = None) -> dict[str, Any]:
@@ -184,6 +203,7 @@ class Hub:
             self.active_project = None
         self.config.defaults.default_project = self.active_project
         save_config(self.config, self.config_path)
+        self.log.info("设置默认项目：%s", self.active_project)
         return {"ok": True, "active_project": self.active_project}
 
     async def tools(self, name: str, project: str | None = None) -> dict[str, Any]:
@@ -211,8 +231,12 @@ class Hub:
         definition = self._definition(name, project)
         resolved = resolve(definition, project)
         instance = await self.manager.acquire(resolved)
+        self.log.info("调用工具：%s.%s project=%s instance=%s", name, tool, project, resolved.instance_key)
         try:
             result = await instance.call(tool, arguments)
+        except Exception as exc:
+            self.log.warning("工具调用失败：%s.%s error=%s", name, tool, exc)
+            raise
         finally:
             self.manager.touch(resolved.instance_key)
         return _result_to_dict(result, resolved)
@@ -221,6 +245,7 @@ class Hub:
         if self._reaper is not None:
             self._reaper.cancel()
         await self.manager.close_all()
+        self.log.info("Hub 关闭：所有实例已清理")
 
 
 def _pick(obj: Any, *names: str, default: Any = None) -> Any:

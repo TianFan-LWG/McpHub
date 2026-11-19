@@ -28,12 +28,20 @@ class McpDefinition(BaseModel):
     bindings: Bindings = Field(default_factory=Bindings)
 
 
+class Logging(BaseModel):
+    level: str = "INFO"
+    dir: str | None = None  # None -> ~/.mcp-hub/logs（可用 MCPHUB_LOG_DIR 覆盖）
+    stderr: bool = False
+    backup_days: int = 14
+
+
 class Defaults(BaseModel):
     idle_timeout_minutes: int = 30
     max_instances: int = 16
     call_timeout_seconds: int = 60
     start_timeout_seconds: int = 90
     default_project: str | None = None
+    logging: Logging = Field(default_factory=Logging)
 
 
 class HubConfig(BaseModel):

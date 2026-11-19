@@ -4,6 +4,7 @@ import asyncio
 import time
 from typing import TYPE_CHECKING
 
+from . import logger
 from .bindings import ResolvedBinding
 
 if TYPE_CHECKING:
@@ -26,12 +27,14 @@ class InstanceManager:
         self._instances: dict[str, StdioSubMcp] = {}
         self._last_used: dict[str, float] = {}
         self._lock = asyncio.Lock()
+        self.log = logger.get_logger()
 
     async def acquire(self, resolved: ResolvedBinding) -> StdioSubMcp:
         key = resolved.instance_key
         async with self._lock:
             instance = self._instances.get(key)
             if instance is not None and instance.closed:
+                self.log.warning("实例已崩溃，移除后重建：%s", key)
                 self._instances.pop(key, None)
                 self._last_used.pop(key, None)
                 instance = None
@@ -48,8 +51,12 @@ class InstanceManager:
                     call_timeout=self.call_timeout,
                     start_timeout=self.start_timeout,
                 )
+                self.log.info("启动子 MCP 实例：%s command=%s args=%s", key, resolved.command, resolved.args)
                 await instance.start()
                 self._instances[key] = instance
+                self.log.info("子 MCP 实例就绪：%s 工具数=%d", key, len(instance.tools))
+            else:
+                self.log.debug("复用实例：%s", key)
             self._last_used[key] = time.monotonic()
             return instance
 
@@ -59,6 +66,7 @@ class InstanceManager:
             instance = self._instances.pop(key, None)
             self._last_used.pop(key, None)
             if instance is not None:
+                self.log.info("LRU 淘汰实例：%s（已达上限 %d）", key, self.max_instances)
                 await instance.stop()
 
     def touch(self, key: str) -> None:
@@ -74,6 +82,8 @@ class InstanceManager:
                 self._last_used.pop(key, None)
                 if instance is not None:
                     instances.append(instance)
+        if instances:
+            self.log.info("重启子 MCP %s：关闭 %d 个实例", name, len(instances))
         for instance in instances:
             await instance.stop()
         return len(instances)
@@ -83,6 +93,8 @@ class InstanceManager:
             instances = list(self._instances.values())
             self._instances.clear()
             self._last_used.clear()
+        if instances:
+            self.log.info("close_all：关闭 %d 个实例", len(instances))
         for instance in instances:
             await instance.stop()
 
@@ -96,6 +108,8 @@ class InstanceManager:
                 self._last_used.pop(key, None)
                 if instance is not None:
                     instances.append(instance)
+        if instances:
+            self.log.info("空闲回收：关闭 %d 个超时实例（idle=%ds）", len(instances), int(self.idle_timeout))
         for instance in instances:
             await instance.stop()
         return len(instances)

@@ -5,25 +5,17 @@ import json
 import os
 import sys
 import threading
-import time
 import traceback
 from typing import Any
 
+from . import logger
 from .errors import HubError
 from .hub import Hub
 
 SERVER_INFO = {"name": "mcp-hub", "version": "1.0.0"}
 PROTOCOL_VERSION = "2024-11-05"
 
-DEBUG_LOG = os.path.join(os.path.expanduser("~"), ".mcp-hub", "stdio-debug.log")
-
-
-def _dbg(msg: str) -> None:
-    try:
-        with open(DEBUG_LOG, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%H:%M:%S')}] pid={os.getpid()} {msg}\n")
-    except Exception:
-        pass
+log = logger.get_logger()  # 懒配置：Hub 初始化后会按 hub.json 重新 configure
 
 _hub: Hub | None = None
 
@@ -242,7 +234,7 @@ _HANDLERS = {
 
 def _write(payload: dict[str, Any]) -> None:
     line = json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n"
-    _dbg(f"SEND {line.strip()[:400]}")
+    log.debug("SEND %s", line.strip()[:400])
     sys.stdout.write(line)
     sys.stdout.flush()
 
@@ -293,13 +285,15 @@ class _Dispatcher:
                 fut = asyncio.run_coroutine_threadsafe(get_hub().close(), self._loop)
                 fut.result(timeout=30)
             except Exception as exc:  # 关停失败不影响退出
-                print(f"mcp-hub shutdown error: {exc}", file=sys.stderr)
+                log.error("关停失败：%s", exc)
+            else:
+                log.info("McpHub 优雅关停完成")
             finally:
                 self._loop.call_soon_threadsafe(self._loop.stop)
 
     def _handle_message(self, msg: Any) -> None:
         if not isinstance(msg, dict):
-            _dbg(f"SKIP non-dict message: {type(msg).__name__}")
+            log.debug("跳过非字典消息：%s", type(msg).__name__)
             return
         method = msg.get("method")
         req_id = msg.get("id")
@@ -307,6 +301,7 @@ class _Dispatcher:
             return  # response/notification 无需处理
         if method == "initialize":
             requested = (msg.get("params") or {}).get("protocolVersion", PROTOCOL_VERSION)
+            log.info("客户端握手：协议版本=%s", requested)
             _result(
                 req_id,
                 {
@@ -317,7 +312,7 @@ class _Dispatcher:
             )
             return
         if method.startswith("notifications/"):
-            _dbg(f"NOTIF {method}")
+            log.debug("通知：%s", method)
             return
 
         params = msg.get("params") or {}
@@ -326,10 +321,13 @@ class _Dispatcher:
             result = fut.result(timeout=600)
             _result(req_id, result)
         except LookupError as exc:
+            log.warning("未知方法/工具：%s", exc)
             _error(req_id, -32601, str(exc))
         except TimeoutError:
+            log.error("请求超时：%s", method)
             _error(req_id, -32000, "request timeout")
         except Exception as exc:
+            log.exception("处理请求异常：%s", method)
             _error(req_id, -32603, f"internal error: {exc}")
 
     def serve(self) -> None:
@@ -337,10 +335,9 @@ class _Dispatcher:
             sys.stdout.reconfigure(encoding="utf-8")
         except Exception:
             pass
-        _dbg(
-            f"spawn argv={sys.argv} cwd={os.getcwd()} "
-            f"PYTHONHOME={os.environ.get('PYTHONHOME')} PYTHONPATH={os.environ.get('PYTHONPATH')}"
-        )
+        log.info("McpHub 启动：pid=%d 日志目录=%s", os.getpid(), logger.log_dir())
+        log.debug("启动环境：argv=%s cwd=%s PYTHONHOME=%s PYTHONPATH=%s",
+                  sys.argv, os.getcwd(), os.environ.get("PYTHONHOME"), os.environ.get("PYTHONPATH"))
 
         self._loop = asyncio.new_event_loop()
         worker = threading.Thread(target=self._run_loop, daemon=True)
@@ -350,17 +347,17 @@ class _Dispatcher:
             while True:
                 raw = sys.stdin.buffer.readline()
                 if not raw:
-                    _dbg("EOF stdin closed")
+                    log.info("stdin 关闭，开始关停")
                     break
                 if raw.strip():
-                    _dbg(f"RECV {raw!r}")
+                    log.debug("RECV %s", raw[:400])
                 text = raw.decode("utf-8", "replace").strip()
                 if not text:
                     continue
                 try:
                     msg = json.loads(text)
                 except json.JSONDecodeError as exc:
-                    _dbg(f"PARSE-ERROR {exc}: {text[:200]}")
+                    log.warning("JSON 解析失败：%s raw=%s", exc, text[:200])
                     _error(None, -32700, "parse error")
                     continue
                 msgs = msg if isinstance(msg, list) else [msg]
@@ -368,7 +365,7 @@ class _Dispatcher:
                     try:
                         self._handle_message(m)
                     except Exception:
-                        _dbg("HANDLER-CRASH " + traceback.format_exc())
+                        log.error("消息处理崩溃：%s", traceback.format_exc())
         finally:
             self._shutdown()
 

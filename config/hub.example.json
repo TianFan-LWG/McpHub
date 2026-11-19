@@ -5,7 +5,13 @@
     "max_instances": 16,
     "call_timeout_seconds": 60,
     "start_timeout_seconds": 90,
-    "default_project": null
+    "default_project": null,
+    "logging": {
+      "level": "INFO",
+      "dir": null,
+      "stderr": false,
+      "backup_days": 14
+    }
   },
   "mcps": {
     "filesystem": {

@@ -8,6 +8,7 @@ from typing import Any
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+from . import logger
 from .errors import HubError
 
 
@@ -54,6 +55,7 @@ class StdioSubMcp:
         self._closed = False
         self._worker: asyncio.Task[None] | None = None
         self._tools: list[Any] = []
+        self.log = logger.get_logger()
 
     @property
     def tools(self) -> list[Any]:
@@ -68,6 +70,7 @@ class StdioSubMcp:
         try:
             await asyncio.wait_for(self._ready.wait(), timeout=self.start_timeout)
         except asyncio.TimeoutError as exc:
+            self.log.error("子 MCP 启动超时：%s（%.0fs）command=%s args=%s", self.name, self.start_timeout, self.command, self.args)
             await self.stop()
             raise HubError(
                 "START_TIMEOUT",
@@ -76,6 +79,7 @@ class StdioSubMcp:
             ) from exc
         if self._start_error is not None:
             message = _format_error(self._start_error)
+            self.log.error("子 MCP 启动失败：%s error=%s", self.name, message)
             await self.stop()
             raise HubError(
                 "START_FAILED",
@@ -139,6 +143,7 @@ class StdioSubMcp:
                     await session.initialize()
                     listed = await session.list_tools()
                     self._tools = list(listed.tools)
+                    self.log.info("子 MCP 会话就绪：%s 发现 %d 个工具", self.name, len(self._tools))
                     self._ready.set()
                     while True:
                         item = await self._queue.get()
@@ -147,9 +152,11 @@ class StdioSubMcp:
                         future, tool, arguments = item
                         if future.cancelled():
                             continue
+                        self.log.debug("子 MCP 调用：%s.%s args=%s", self.name, tool, arguments)
                         try:
                             result = await session.call_tool(tool, arguments)
                         except Exception as exc:
+                            self.log.warning("子 MCP 工具调用异常：%s.%s error=%s", self.name, tool, _format_error(exc))
                             if not future.done():
                                 future.set_exception(exc)
                         else:
@@ -157,11 +164,13 @@ class StdioSubMcp:
                                 future.set_result(result)
         except Exception as exc:
             self._start_error = exc
+            self.log.error("子 MCP 工作线程异常退出：%s error=%s", self.name, _format_error(exc))
             self._ready.set()
             self._fail_pending(exc)
         finally:
             self._closed = True
             self._ready.set()
+            self.log.info("子 MCP 会话结束：%s", self.name)
             self._fail_pending(
                 HubError("INSTANCE_CLOSED", f"mcp '{self.name}' instance is closed", mcp=self.name)
             )
