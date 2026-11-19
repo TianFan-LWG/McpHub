@@ -335,7 +335,7 @@ class _Dispatcher:
             sys.stdout.reconfigure(encoding="utf-8")
         except Exception:
             pass
-        log.info("McpHub 启动：pid=%d 日志目录=%s", os.getpid(), logger.log_dir())
+        log.info("McpHub 启动：pid=%d 日志文件=%s", os.getpid(), logger.log_file())
         log.debug("启动环境：argv=%s cwd=%s PYTHONHOME=%s PYTHONPATH=%s",
                   sys.argv, os.getcwd(), os.environ.get("PYTHONHOME"), os.environ.get("PYTHONPATH"))
 

@@ -262,7 +262,16 @@ McpHub 会记录子 MCP 的完整生命周期（实例启动/就绪/崩溃/回�
 | `stderr` | 是否同时把日志写到 stderr | `false` |
 | `backup_days` | 按天轮转保留天数 | `14` |
 
-也可用环境变量覆盖（优先级高于配置文件）：`MCPHUB_LOG_DIR`、`MCPHUB_LOG_LEVEL`、`MCPHUB_LOG_STDERR=1`。
+日志路径也能像配置文件路径（`MCPHUB_CONFIG`）一样用环境变量指定，且**环境变量优先级高于 hub.json**：
+
+| 环境变量 | 说明 | 示例 |
+|---|---|---|
+| `MCPHUB_LOG` | 日志文件完整路径，优先级最高（与 `MCPHUB_CONFIG` 对称） | `D:/logs/mcp-hub.log` |
+| `MCPHUB_LOG_DIR` | 日志目录，文件名固定为 `mcp-hub.log` | `D:/logs` |
+| `MCPHUB_LOG_LEVEL` | 覆盖 `defaults.logging.level` | `DEBUG` |
+| `MCPHUB_LOG_STDERR` | `1` 表示同时回显到 stderr | `1` |
+
+优先级：`MCPHUB_LOG` > `MCPHUB_LOG_DIR` > `defaults.logging.dir` > 默认 `~/.mcp-hub/logs/mcp-hub.log`。例如设置 `MCPHUB_LOG=D:/logs/my-hub.log` 后，日志就固定写到该文件。
 
 典型日志片段：
 

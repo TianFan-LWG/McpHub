@@ -1,12 +1,14 @@
 """McpHub 日志系统。
 
-默认写入 ~/.mcp-hub/logs/mcp-hub-YYYY-MM-DD.log，按天轮转、保留 14 天。
+默认写入 ~/.mcp-hub/logs/mcp-hub.log，按天轮转、保留 14 天。
 绝对不写 stdout（stdio MCP 协议独占 stdout）；是否回显 stderr 可配置。
 
-配置优先级（高 -> 低）：
-  1. 显式调用 configure()（Hub 用 hub.json 的 defaults.logging 调用）
-  2. 环境变量 MCPHUB_LOG_DIR / MCPHUB_LOG_LEVEL / MCPHUB_LOG_STDERR
-  3. 默认值：~/.mcp-hub/logs、INFO、不回显 stderr
+配置优先级（高 -> 低），与配置文件路径的 MCPHUB_CONFIG 机制一致：
+  1. 环境变量 MCPHUB_LOG          —— 日志文件的完整路径（形如 MCPHUB_CONFIG）
+  2. 环境变量 MCPHUB_LOG_DIR      —— 日志目录，文件名固定为 mcp-hub.log
+  3. 其他环境变量 MCPHUB_LOG_LEVEL / MCPHUB_LOG_STDERR
+  4. hub.json 的 defaults.logging（显式调用 configure 时传入）
+  5. 默认值：~/.mcp-hub/logs/mcp-hub.log、INFO、不回显 stderr
 """
 
 from __future__ import annotations
@@ -29,8 +31,17 @@ _current: dict[str, Any] = {}
 
 
 def default_log_dir() -> Path:
+    """默认日志目录，可被 MCPHUB_LOG_DIR 覆盖。"""
     env = os.environ.get("MCPHUB_LOG_DIR")
     return Path(env).expanduser() if env else Path.home() / DEFAULT_LOG_DIRNAME
+
+
+def default_log_file() -> Path:
+    """默认日志文件完整路径，可被 MCPHUB_LOG / MCPHUB_LOG_DIR 覆盖。"""
+    env_file = os.environ.get("MCPHUB_LOG")
+    if env_file:
+        return Path(env_file).expanduser()
+    return default_log_dir() / DEFAULT_LOG_FILE
 
 
 def _resolve_level(value: str | int | None) -> int:
@@ -41,11 +52,11 @@ def _resolve_level(value: str | int | None) -> int:
     return logging.getLevelName(str(value).upper())  # type: ignore[return-value]
 
 
-def _stderr_enabled() -> bool:
-    explicit = _current.get("stderr")
-    if explicit is not None:
-        return bool(explicit)
-    return os.environ.get("MCPHUB_LOG_STDERR", "").strip().lower() in {"1", "true", "yes", "on"}
+def _env_flag(name: str) -> bool | None:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return None
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def configure(
@@ -56,16 +67,34 @@ def configure(
     backup_days: int | None = None,
     force: bool = False,
 ) -> logging.Logger:
-    """配置并返回一个可供全局使用的 logger。重复调用默认幂等。"""
+    """配置并返回一个可供全局使用的 logger。重复调用默认幂等。
+
+    log_dir/level/stderr/backup_days 来自配置文件（hub.json）；
+    任一对应的环境变量存在时优先采用环境变量的值。
+    """
     global _logger, _current
 
-    target_dir = Path(log_dir).expanduser() if log_dir else default_log_dir()
-    resolved_level = _resolve_level(level)
-    resolved_backup = int(backup_days or DEFAULT_BACKUP_DAYS)
-    stderr_flag = _stderr_enabled() if stderr is None else bool(stderr)
+    # 日志路径：MCPHUB_LOG（完整文件）> MCPHUB_LOG_DIR（目录）> 配置 dir > 默认
+    env_file = os.environ.get("MCPHUB_LOG")
+    env_dir = os.environ.get("MCPHUB_LOG_DIR")
+    if env_file:
+        log_file = Path(env_file).expanduser()
+    elif env_dir:
+        log_file = Path(env_dir).expanduser() / DEFAULT_LOG_FILE
+    elif log_dir:
+        log_file = Path(log_dir).expanduser() / DEFAULT_LOG_FILE
+    else:
+        log_file = Path.home() / DEFAULT_LOG_DIRNAME / DEFAULT_LOG_FILE
 
+    # 级别与 stderr：环境变量优先于配置文件
+    env_level = os.environ.get("MCPHUB_LOG_LEVEL")
+    resolved_level = _resolve_level(env_level if env_level else level)
+    env_stderr = _env_flag("MCPHUB_LOG_STDERR")
+    stderr_flag = env_stderr if env_stderr is not None else (bool(stderr) if stderr is not None else False)
+
+    resolved_backup = int(backup_days or DEFAULT_BACKUP_DAYS)
     signature = {
-        "dir": str(target_dir),
+        "file": str(log_file),
         "level": resolved_level,
         "backup": resolved_backup,
         "stderr": stderr_flag,
@@ -80,7 +109,7 @@ def configure(
         logger.removeHandler(handler)
         handler.close()
 
-    target_dir.mkdir(parents=True, exist_ok=True)
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     formatter = logging.Formatter(
         fmt="%(asctime)s.%(msecs)03d %(levelname)-7s [%(process)d] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
@@ -88,7 +117,7 @@ def configure(
 
     try:
         file_handler: logging.Handler = TimedRotatingFileHandler(
-            target_dir / DEFAULT_LOG_FILE,
+            str(log_file),
             when="midnight",
             interval=1,
             backupCount=resolved_backup,
@@ -107,10 +136,14 @@ def configure(
         logger.addHandler(stream_handler)
 
     if not logger.handlers:  # 兜底：文件创建失败且无 stderr，避免日志丢失
-        fallback = logging.NullHandler()
-        logger.addHandler(fallback)
+        logger.addHandler(logging.NullHandler())
 
-    _current = {"signature": signature, "dir": str(target_dir), "stderr": stderr_flag}
+    _current = {
+        "signature": signature,
+        "file": str(log_file),
+        "dir": str(log_file.parent),
+        "stderr": stderr_flag,
+    }
     _logger = logger
     return logger
 
@@ -124,6 +157,10 @@ def get_logger() -> logging.Logger:
 
 def log_dir() -> Path:
     return Path(_current.get("dir", str(default_log_dir())))
+
+
+def log_file() -> Path:
+    return Path(_current.get("file", str(default_log_file())))
 
 
 def debug(msg: str, *args: Any, **kwargs: Any) -> None:

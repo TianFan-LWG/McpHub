@@ -32,7 +32,7 @@ class Hub:
             backup_days=log_cfg.backup_days,
         )
         self.log = logger.get_logger()
-        self.log.info("Hub 初始化：配置=%s 子MCP数=%d 日志目录=%s", self.config_path, len(self.config.mcps), logger.log_dir())
+        self.log.info("Hub 初始化：配置=%s 子MCP数=%d 日志文件=%s", self.config_path, len(self.config.mcps), logger.log_file())
         self.active_project: str | None = self.config.defaults.default_project
         self.manager = InstanceManager(
             call_timeout=float(self.config.defaults.call_timeout_seconds),

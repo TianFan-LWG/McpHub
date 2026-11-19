@@ -262,7 +262,16 @@ Configure under `defaults.logging` in `hub.json`:
 | `stderr` | Also echo logs to stderr | `false` |
 | `backup_days` | Days of rotated logs to keep | `14` |
 
-Environment variables override the config file (higher priority): `MCPHUB_LOG_DIR`, `MCPHUB_LOG_LEVEL`, `MCPHUB_LOG_STDERR=1`.
+The log path can be set via environment variables just like the config path (`MCPHUB_CONFIG`), and **environment variables take priority over hub.json**:
+
+| Variable | Meaning | Example |
+|---|---|---|
+| `MCPHUB_LOG` | Full path to the log file, highest priority (symmetric to `MCPHUB_CONFIG`) | `D:/logs/mcp-hub.log` |
+| `MCPHUB_LOG_DIR` | Log directory, filename fixed as `mcp-hub.log` | `D:/logs` |
+| `MCPHUB_LOG_LEVEL` | Overrides `defaults.logging.level` | `DEBUG` |
+| `MCPHUB_LOG_STDERR` | `1` to also echo to stderr | `1` |
+
+Priority: `MCPHUB_LOG` > `MCPHUB_LOG_DIR` > `defaults.logging.dir` > default `~/.mcp-hub/logs/mcp-hub.log`. For example, setting `MCPHUB_LOG=D:/logs/my-hub.log` pins the log to that file.
 
 The old `~/.mcp-hub/stdio-debug.log` from early versions has been replaced by this logging system and is no longer produced.
 
