@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-11-18T18:59:52Z",
-  "updated_at": "2026-11-19T20:11:26Z",
+  "updated_at": "2026-11-19T20:19:25Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -41,9 +41,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "296711277e6cb839a2e1c1e241d5a2b701798619f3e65ff1c12aaa75a865f1dd",
+      "sha256": "eacc733a23890b9fb6be88e5aaa7732f222802012e0ae83da107d199c521b39f",
       "size": 8629,
-      "normalized_sha256": "296711277e6cb839a2e1c1e241d5a2b701798619f3e65ff1c12aaa75a865f1dd"
+      "normalized_sha256": "eacc733a23890b9fb6be88e5aaa7732f222802012e0ae83da107d199c521b39f"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -131,9 +131,9 @@
     },
     "mcp_hub/server.py": {
       "role": "index",
-      "sha256": "1fe018f076bfab9b59275095d84eedc916b51f436ffb14fb415d4863ba1127df",
-      "size": 12940,
-      "normalized_sha256": "1fe018f076bfab9b59275095d84eedc916b51f436ffb14fb415d4863ba1127df"
+      "sha256": "397b19930276397b22ad60fae1f260d56b4435b99b316fe5e70648d04356d3e9",
+      "size": 13082,
+      "normalized_sha256": "397b19930276397b22ad60fae1f260d56b4435b99b316fe5e70648d04356d3e9"
     },
     "pyproject.toml": {
       "role": "index",
