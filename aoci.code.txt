@@ -4,14 +4,17 @@
 .gitattributes[FG5T]: F:强制文本文件按 LF 检出以保持跨平台字节一致 | R:- | A:- | S:覆盖 Windows autocrlf 默认改写，否则整树被 aoci 判定为 stale
 .gitignore[FG5T]: F:忽略虚拟环境、字节码缓存、构建产物、日志与密钥等运行时文件 | R:- | A:- | S:-
 AGENTS.md[SG8S]: F:声明本仓库 AOCI 认知的建立、读取、维护与收尾约定 | R:- | A:- | S:上下文压缩后须把此前认知视为不可靠并用 context_compaction 重载完整 overview；严格 Attestation 通过前不得执行 Root/Meta 等系统级决策
-README.md[SG7M]: F:项目概览、工作原理、快速开始、迁移步骤、元工具清单与配置说明 | R:code:config/hub.example.json | A:- | S:-
+README.md[SG7M]: F:项目中文概览：定位与工作原理、快速安装、配置、普通 MCP 迁移、九个元工具、模板变量、项目级覆盖、测试与目录；含与英文版互链及 Agent 借助 description 发现子 MCP 的说明 | R:code:config/hub.example.json,code:README.en.md,code:skills/mcp-to-hub/SKILL.md,code:skills/mcp-hub-discover/SKILL.md | A:- | S:示例中的项目位置与主目录路径均为虚构值，修改示例时不得写入真实路径
 pyproject.toml[FV6T]: F:声明项目元数据、mcp 依赖、mcp-hub 入口与 hatchling 打包配置 | R:- | A:- | S:-
+LICENSE[SZ6T]: F:MIT 许可证全文，版权归 2026 TianFan；授予使用复制修改合并发布分发再许可与销售权，条件为再分发保留版权与许可文本，并附按现状提供的免责声明 | R:- | A:- | S:-
+README.en.md[SG7M]: F:英文版项目概览，与 README.md 对等：定位与工作原理、快速安装、配置、普通 MCP 迁移、九个元工具、模板变量、项目级覆盖、测试与目录，含 Agent 子 MCP 发现说明与中文版互链 | R:code:README.md,code:config/hub.example.json,code:skills/mcp-hub-discover/SKILL.md | A:- | S:示例路径均为虚构值，修改时不得写入真实路径；本文件须与 README.md 保持内容一致
 
 ===/<repository>/config/===
 hub.example.json[FC6T]: F:filesystem 子 MCP 的最小 Hub 配置示例 | R:code:mcp_hub/config.py | A:- | S:-
 
 ===/<repository>/docs/===
 方案设计.md[SG7M]: F:McpHub 桥接器设计：问题、架构、绑定机制、工具 API、生命周期与实施阶段 | R:code:README.md | A:- | S:第 10 节列出待评审决策点；sqlite 示例所用 npm 包已下架，实际默认示例为 filesystem，勿照抄
+QuickStart.md[SL5T]: F:快速开始提示词清单，按 CN/EN 分组，提供让 Agent 安装 McpHub 及 skill、将现有 aoci MCP 转为 Hub 子 MCP 的两段可复制指令 | R:code:skills/mcp-to-hub/SKILL.md | A:- | S:AI Agent 应忽略本文档，提示词仅供用户复制
 
 ===/<repository>/mcp_hub/===
 __init__.py[CG4T]: F:导出 Hub 与 HubError 作为包公共 API | R:code:mcp_hub/hub.py,code:mcp_hub/errors.py | A:- | S:-
@@ -20,7 +23,7 @@ bindings.py[DC9S]: F:构建项目上下文、渲染 args/env/cwd 模板并计算
 client.py[IN9S]: F:管理单个 stdio 子 MCP 进程的 ClientSession 生命周期与工具调用 | R:code:mcp_hub/errors.py | A:StdioSubMcp,resolve_command | S:anyio stream 绑定创建它的 task，故 session I/O 必须在 worker task 内经队列代理；调用超时会 cancel 对应 future
 config.py[CC8S]: F:pydantic 配置模型、全局与项目级配置加载及深度合并 | R:code:mcp_hub/errors.py | A:load_config,save_config,merge_overlay | S:MCPHUB_CONFIG 环境变量覆盖默认配置路径；项目级 .mcp-hub.json 深度合并到全局配置之上
 errors.py[CG7T]: F:定义统一结构化错误 HubError 与 to_dict 序列化 | R:- | A:HubError | S:-
-hub.py[AB9M]: F:编排子 MCP 的安装查询更新删除重启、上下文管理、工具发现与代理调用 | R:code:mcp_hub/config.py,code:mcp_hub/client.py,code:mcp_hub/manager.py,code:mcp_hub/bindings.py | A:Hub | S:带 project 的调用会加载项目级 overlay 并深度合并；update 重启该 MCP 全部现有实例；后台 reaper 每 60 秒回收空闲实例
+hub.py[AB9M]: F:编排子 MCP 的安装查询更新删除重启、上下文管理、工具发现与代理调用；list 返回每个子 MCP 的 description 供能力发现 | R:code:mcp_hub/config.py,code:mcp_hub/client.py,code:mcp_hub/manager.py,code:mcp_hub/bindings.py | A:Hub | S:带 project 的调用会加载项目级 overlay 并深度合并；update 重启该 MCP 全部现有实例；后台 reaper 每 60 秒回收空闲实例；list 的 description 直接取定义配置，未配置时为 None 且不补默认值
 manager.py[RP8S]: F:实例池的惰性创建、LRU 淘汰、空闲回收与按名重启 | R:code:mcp_hub/client.py | A:InstanceManager,acquire,reap_idle | S:超过 max_instances 淘汰最久未用实例；stop 时对 worker 用 asyncio.shield 防止取消泄漏
 server.py[EG9S]: F:对上 MCP Server，定义九个元工具并统一结构化返回 | R:code:mcp_hub/hub.py,code:mcp_hub/errors.py | A:mcp_list,mcp_call,mcp_tools | S:Hub 单例延迟初始化；所有工具把 HubError 转为结构化错误，其他异常归为 INTERNAL
 
@@ -32,3 +35,6 @@ conversion-rules.md[SC6S]: F:字段映射、绑定策略决策树、四类转换
 
 ===/<repository>/skills/mcp-to-hub/scripts/===
 convert.py[XC7M]: F:扫描普通 MCP 配置中的绝对路径替换为模板、推断绑定策略并可合并进 hub.json | R:code:skills/mcp-to-hub/references/conversion-rules.md | A:convert_server,merge_into_hub | S:数据库路径不在 --project 内时降级 per_file 并告警；同名条目写入需 --force；npx/uvx 参数风格保持原样不擅改
+
+===/<repository>/skills/mcp-hub-discover/===
+SKILL.md[SE7T]: F:mcp-hub-discover 技能：Agent 找不到工具时先用 mcp_list 读子 MCP 的 description 筛候选，再 mcp_tools 发现工具、mcp_call 代理执行，而非直接回复无法完成 | R:code:mcp_hub/hub.py,code:README.md | A:- | S:per_project 与 per_file 必须传 project，缺 project 返回 PROJECT_REQUIRED 而非工具不存在；description 为空时用 mcp_get 看配置兜底
