@@ -1,10 +1,12 @@
 # McpHub
 
+> 语言：简体中文 | [English](README.en.md)
+
 一个 MCP 桥接器：**对上只占 Agent 的一份 MCP 配置，对下动态管理按项目绑定的子 MCP。**
 
 解决的核心问题：Agent 只有一份全局 MCP 配置、不支持项目级 MCP，导致 sqlite、aoci 这类需要绑定项目/文件的 MCP 一切换项目就指向旧路径或直接失效。McpHub 把项目差异从"配置文件里的固定值"变成"调用时的动态参数"，切项目不需要改全局配置，也不需要重启 Agent。
 
-设计细节见 [docs/方案设计.md](docs/方案设计.md)，快速安装见 [docs/QuickStart.md](docs/QuickStart.md)。English: [README.en.md](README.en.md)。
+设计细节见 [docs/方案设计.md](docs/方案设计.md)，快速安装见 [docs/QuickStart.md](docs/QuickStart.md)。
 
 ## 工作原理
 

@@ -1,10 +1,12 @@
 # McpHub
 
+> Language: English | [简体中文](README.md)
+
 An MCP bridge: **one MCP entry for the Agent, with child MCPs dynamically managed per project behind it.**
 
 The problem it solves: an Agent has only a single global MCP config and no project-level MCP support, so MCPs that must bind to a project or file (sqlite, aoci, etc.) keep pointing at stale paths or break when you switch projects. McpHub turns project differences from "fixed values in a config file" into "dynamic arguments at call time", so switching projects needs no config edits and no Agent restart.
 
-Design details: [docs/方案设计.md](docs/方案设计.md). Quick install: [docs/QuickStart.md](docs/QuickStart.md). 中文: [README.md](README.md).
+Design details: [docs/方案设计.md](docs/方案设计.md). Quick install: [docs/QuickStart.md](docs/QuickStart.md).
 
 ## How it works
 
