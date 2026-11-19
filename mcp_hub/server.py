@@ -34,7 +34,7 @@ def _fail(exc: Exception) -> dict[str, Any]:
 
 
 async def mcp_list() -> dict[str, Any]:
-    """列出已安装的子 MCP、绑定策略与当前运行实例。"""
+    """List installed child MCPs with their binding strategies and currently running instances."""
     try:
         return get_hub().list()
     except Exception as exc:
@@ -42,7 +42,7 @@ async def mcp_list() -> dict[str, Any]:
 
 
 async def mcp_get(name: str) -> dict[str, Any]:
-    """查看某个子 MCP 的完整配置与实例 Key。"""
+    """Show the full configuration and instance keys of a child MCP."""
     try:
         return get_hub().get(name)
     except Exception as exc:
@@ -60,7 +60,7 @@ async def mcp_install(
     db_file: str | None = None,
     description: str | None = None,
 ) -> dict[str, Any]:
-    """安装（注册）一个子 MCP。strategy 可选 global / per_project / per_file；args/env/cwd 支持 ${PROJECT_ROOT} ${DB_PATH} 等模板。"""
+    """Install (register) a child MCP. strategy can be global / per_project / per_file; args/env/cwd support templates such as ${PROJECT_ROOT} and ${DB_PATH}."""
     try:
         return get_hub().install(
             name=name,
@@ -89,7 +89,7 @@ async def mcp_update(
     enabled: bool | None = None,
     description: str | None = None,
 ) -> dict[str, Any]:
-    """修改子 MCP 配置；改动会自动重启该 MCP 的现有实例。"""
+    """Modify a child MCP's configuration; changes automatically restart that MCP's existing instances."""
     changes = {
         "command": command,
         "args": args,
@@ -108,7 +108,7 @@ async def mcp_update(
 
 
 async def mcp_remove(name: str) -> dict[str, Any]:
-    """卸载子 MCP 并关闭它的全部实例。"""
+    """Uninstall a child MCP and close all of its instances."""
     try:
         return await get_hub().remove(name)
     except Exception as exc:
@@ -116,7 +116,7 @@ async def mcp_remove(name: str) -> dict[str, Any]:
 
 
 async def mcp_restart(name: str | None = None) -> dict[str, Any]:
-    """重启指定子 MCP（不传 name 则重启全部），下次调用时按最新配置惰性重建。"""
+    """Restart a child MCP (all if name is omitted); instances are lazily rebuilt with the latest configuration on next use."""
     try:
         return await get_hub().restart(name)
     except Exception as exc:
@@ -124,7 +124,7 @@ async def mcp_restart(name: str | None = None) -> dict[str, Any]:
 
 
 async def mcp_set_context(project: str | None = None) -> dict[str, Any]:
-    """设置默认项目上下文；后续 mcp_call 未显式传 project 时使用它。传空值则清除。"""
+    """Set the default project context used by mcp_call when project is not explicitly passed; pass an empty value to clear it."""
     try:
         return get_hub().set_context(project)
     except Exception as exc:
@@ -132,7 +132,7 @@ async def mcp_set_context(project: str | None = None) -> dict[str, Any]:
 
 
 async def mcp_tools(name: str, project: str | None = None) -> dict[str, Any]:
-    """发现某个子 MCP 暴露的工具。会按需启动该项目的实例。"""
+    """Discover the tools exposed by a child MCP, starting the instance for that project on demand."""
     try:
         return await get_hub().tools(name, project)
     except Exception as exc:
@@ -145,7 +145,7 @@ async def mcp_call(
     args: dict[str, Any] | None = None,
     project: str | None = None,
 ) -> dict[str, Any]:
-    """代理执行子 MCP 的工具。project 决定绑定到哪个项目（sqlite 会指向该项目的库文件）。"""
+    """Proxy a tool call to a child MCP. project determines which project to bind to (sqlite points to that project's database file)."""
     try:
         return await get_hub().call(mcp, tool, args, project)
     except Exception as exc:
